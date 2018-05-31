@@ -1,32 +1,364 @@
 class: center, middle
 
-# Functional Programming with Bananas in Barbed Wire
+# Into to Reason(ML)
 
 [@monad_cat](https://twitter.com/monad_cat)
 
-???
-
-The title is from a paper from 91! The paper is pretty dry, but it's
-worth reading AFTER you know what this thing is. You'd die otherwise.
 
 ---
 
 class: middle
 
-The usual way for writing recursion goes like
+# What is Reason?
+
+- an OCaml compiler frontend that compiles to JS using bucklescript
+- JS-like syntax, but with more functional features we know and love
+- easy interop with JS
+
+---
+
+class: middle
+
+# Syntax
+
 ```
-data Expr = Const Int
-          | Add Expr Expr
-          | Mul Expr Expr
+type something('a) = Some('a) | None;
+
+let record = {
+  foo: number,
+  bar: string,
+};
+
+=> [2, "hello"]
+
+let betterRecord = {
+  bar: string => unit,
+  unpack: something(int) => int => int
+};
+
+let addNumbers = (a: number, b: number) => {
+  a + b;
+};
+
+let addTwo = addNumbers(2);
+
+let value = "blahblah";
+
+type raw_object = {.
+  "count": int
+};
+
+let withCount: raw_object = {
+  pub count = 1337
+};
+
+=> { "count": 1337 };
+
+withCount##count => 1337
+
+let mutableReference: ref(bool) = ref(true)
+
+mutableReference := false;
+mutableReference^ => false
+
+mutableReference := true;
+mutableReference^ => true
 ```
 
-And we can pretty-print the AST like
+???
+
+Show the compact built representation, reason for quick operation.
+
+There is a way to interact with raw JS objects
+
+---
+class: middle
+
+# Record converters
+
+BuckleScript provides an underlying mechanism for automatic generation of converters to and from records into javascript objects.
+
 ```
-print :: Expr -> String
-print (Const i) = show i
-print (Add a b) = print a ++ " + " ++ print b
-print (Mul a b) = print a ++ " * " ++ print b
+[@bs.deriving jsConverter]
+type coordinates = {
+  x: int,
+  y: int
+};
+
+let coordinatesToJs: coordinates => {. "x": int, "y": int};
+let coordinatesFromJs: {.. "x": int, "y": int} => coordinates;
 ```
+For added type safety you can use the newtype converter
+```
+[@bs.deriving {jsConverter: newType}]
+type coordinates = {
+  x: int,
+  y: int
+};
+
+let coordinatesToJs: coordinates => abs_coordinates;
+let coordinatesFromJs: abs_coordinates => coordinates;
+
+```
+
+???
+
+Converters are shallow, there is an open object
+
+---
+class: middle
+
+# Named parameters
+
+---
+class: middle
+
+# Binding into JS libraries
+
+```
+type subscription;
+type _observer('a, 'b) = {.
+  "closed": ref(bool),
+  [@bs.meth] "next": 'a => unit,
+  [@bs.meth] "error": 'b => unit,
+  [@bs.meth] "complete": unit => unit
+};
+
+type observer('a, 'b) = {
+  closed: ref(bool),
+  next: 'a => unit,
+  error: 'b => unit,
+  complete: unit => unit
+};
+type observable('a, 'b) = {.
+  [@bs.meth] "subscribe": (('a => unit), ('b => unit), (unit => unit)) => subscription
+};
+
+[@bs.scope "Observable"][@bs.module "@reactivex/rxjs/dist/cjs/Observable"][@bs.val] external createObservable: (_observer('a, 'b) => unit) => observable('a, 'b) = "create";
+
+type create('a, 'b) = (unit) => (observer('a, 'b), observable('a, 'b));
+
+let create: create('a, 'b) = () => {
+  let realObservers: ref(list(_observer('a, 'b))) = ref([]);
+  let observer: observer('a, 'b) = {
+    closed: ref(false),
+    next: (el) => {
+      List.map(o => o##next(el), realObservers^) |> ignore;
+    },
+    error: (err) => {
+      List.map(o => o##error(err), realObservers^) |> ignore;
+    },
+    complete: () => {
+      List.map(o => o##complete(), realObservers^) |> ignore;
+    }
+  };
+  let createResult = createObservable((o) => {
+    realObservers := Js_list.cons(o, realObservers^);
+  });
+
+  (observer, createResult);
+};
+```
+
+???
+
+Let's talk about how to bind into methods in an object. Should we have haskell types to compare this to?
+
+Notice that we can't use the subscription to anything, we haven't implemented that feature yet.
+
+Elements are read in order.
+
+What is bs.val about?
+
+Chaining with |> and the type of ignore
+
+---
+class: middle
+
+# Null, undefined, option
+
+`Maybe` is `option`
+
+```
+type option('a) = None | Some('a);
+
+let foo = None; /* var foo = 0; */
+let bar = Some("thing"); /* var bar = ["thing"] */
+```
+Unfortunately we don't have monadic operators on hand, helper functions are exported by the `Js.Option` module. There are also constructs for interfacing with JS APIs that can return `null` or `undefined`:
+
+```
+let theJsValue: Js.Nullable.t(string) = /* the value you've gotten here */
+let nullableString: Js.Nullable.t(string) = Js.Nullable.return("hello");
+```
+
+And nullable can be automatically converted to `option` at the FFI boundary:
+```
+type element;
+[@bs.val] [@bs.return nullable] [@bs.scope "document"] external getElementById : string => option(element) = "getElementById";
+```
+
+Advantage of this approach is that the conversion to `option` is only applied if the value isn't decructured at the point of calling the function:
+```
+switch (getElementById("most-important")) {
+  | None => Js.log("none");
+  | Some(a) => Js.log(a);
+};
+
+=>
+var match = document.getElementById("most-important");
+if (match == null) {
+  console.log("none");
+} else {
+  console.log(match);
+}
+```
+
+```
+let a = getElementById("b");
+Js.log(a);
+
+=>
+var a = document.getElementById("b");
+console.log((a == null) ? 0 : [a]);
+```
+
+---
+class: middle
+
+# Module system
+
+We would use the `create` function of observable like so
+
+```
+let (observer, createResult) = Observable.create();
+```
+
+Modules are resolved from capitalized file names, there are no explicit imports we  are used to from other languages.
+
+There can also be multiple modules in one file:
+```
+module First = {
+  let a = 2;
+};
+
+module Second = {
+  let b = First.a;
+}
+```
+the same in-order reading applies.
+
+There is no way of controlling the exports from inside a `.re` file, you need an interface file for that. It can be automatically generated with
+```
+bsc -bs-re-out lib/bs/src/yourFile.cmi
+```
+
+Which will generate an interface file with all the types exported from a module that you can then tweak however you wish.
+
+---
+class: middle
+
+# Pipes
+
+There are three main function application (pipe) operators:
+```
+#typeof "@@"
+external Pervasives.@@: ('a => 'b, 'a) => 'b = "%apply";
+
+#typeof "|>"
+external Pervasives.|>: ('a, 'a => 'b) => 'b = "%revapply";
+
+#typeof "|."
+Unknown type
+```
+
+`|.` is a fast pipe, because the compiler eliminates it at build time:
+
+```
+(Js.log) |. List.map (["a", "b"])
+
+
+=>
+List.map((function(prim) {
+  console.log(prim);
+  return 0;
+}), ["a", ["b"]]);
+```
+
+???
+
+Unknown type because |. is part of the language (Reason/BuckleScript).
+
+---
+class: middle
+
+# Parsing JSON (the compositional and parser combinator approaches)
+
+
+---
+class: middle
+
+# Converters and helpers
+
+---
+class: middle
+
+# Polymorphic variants
+
+Normal variants must be a member of a type:
+
+```
+# type food = Sandwitch | Flakes | Banana;
+# Flakes;
+
+- : food = Flakes
+```
+
+While polymorphic variants can exist on their own:
+```
+# `Flakes;
+
+- : [> `Flakes ] = `Flakes
+```
+and can be used in multiple types:
+```
+# type foo = [`Flakes | `Sandwitch];
+# type bar = [`Flakes];
+```
+
+Equality is also the equality of constructors:
+```
+# type foo = [`One | `Two];
+# type bar = [`Two | `One];
+# let id = (arg: foo) => arg;
+# let test: bar = `One;
+# id(test);
+- : foo = `One;
+```
+---
+
+
+# What is ReasonML:
+- compiles to OCaml that uses the bucklescript compiler to output JS
+- JS like syntax with more functional features and a typesystem more advanced than Flow/TS but less advanced than Haskell - code is often faster than comparable JS (here some examples)
+    -> different function call syntax bracket-languages-like
+    -> named components
+    -> currying
+
+- easy interop with raw JS 
+      -> escape hatch of @bs.raw
+      -> call into an arbitrary method, preseve this
+      -> multiple ways of doing the same thing
+- focus on small, performant and error protected output, at the cost of more advanced features of the typesystem - maybe compare the output of PureScript and Reason for the same sample program, benchmark the output
+- show records vs objects, switch statements, importing raw JS
+- a bit weird module system, to someone coming from JS/Cpp/Haskell
+- describe React a bit, why it is a good paradigm for writing simple apps
+- how ReasonReact works?
+   -> Go through the tutorial
+   -> how events work?
+
+- sooo, what project do we want to have?
+
 
 ---
 
@@ -34,329 +366,4 @@ class: middle
 
 # Can we do better?
 
-```
-data ExprF a = Const Int
-             | Add a a 
-             | Mul a a
-             deriving (Show, Eq)
-```
-
-which corresponds to
-
-```
-data Expr = Const Int
-          | Add Expr Expr
-          | Mul Expr Expr
-```
 ---
-class: middle
-
-# Is this a functor?
-
-```
-data ExprF a = Const Int
-             | Add a a 
-             | Mul a a
-             deriving (Show, Eq)
-
-class Functor f where
-  fmap :: (a -> b) -> f a -> f b
-```
-
-Let's try writing an fmap
-
-```
-fmap f (Const i) = Const i
-fmap f (Add a a) = Add (f a) (f a)
-fmap f (Mul a a) = Mul (f a) (f a)
-```
-
-`Const i` case is forced by types of fmap (`i` is always `Int`, cannot
-be `b`)
-
----
-class: middle
-```
-data ExprF a = Const Int
-             | Add a a 
-             | Mul a a
-             deriving (Show, Eq)
-
-fmap f (Const i) = Const i
-fmap f (Add a a) = Add (f a) (f a)
-fmap f (Mul a a) = Mul (f a) (f a)
-```
-
-Functor laws are
-```
-fmap id == id
-fmap (f . g) == fmap f . fmap g
-```
-
-Proof of (1) follows from definition, for (2)
-```
-Add (f . g $ a) (f . g $ b) = fmap f (Add (g a) (g b)) = 
-  fmap f . fmap g $ Add a b
-```
-
-We can get all this done for us with `DeriveFunctor`, but that's not the
-point
-
----
-
-class: middle
-
-# Our recursive type
-
-```
-data ExprF a = Const Int
-             | Add a a 
-             | Mul a a
-```
-
-But this is useless, right?
-
-```
-> :t Const 2
-> Const 2 :: ExprF a
-
-> :t Add (Const 1) (Const 2)
-> Add (Const 1) (Const 2) :: ExprF (ExprF a)
-```
-
----
-
-class: middle
-
-# Fixed point
-
-```
-data Fix f = Fix (f (Fix f))  --or
-data Fix f = Fix {outF :: f (Fix f)}
-```
-
-Fixed point is a value that is mapped to itself by a function
-
-```
-Fix (f (Fix f)) = Fix (f (Fix (f (Fix f))))
-```
-
-How do we use it?
-```
-Mul (Add ((Const 2) (Const 2))) (Const 2)
-
-Fix $ Const 2
-
-> :t Fix $ Const 2
-Fix $ Const 2 :: Fix ExprF
-
-let fixedExpr =
-  Fix (Mul (Fix (Add (Fix $ Const 2) (Fix $ Const 2))) (Fix $ Const 2))
-
-> :t fixedExpr
-... :: Fix ExprF
-```
----
-
-class: middle
-
-# Algebras / Catamorphisms
-
-```
-type Algebra f a = f a -> a
-
-data ExprF a = Const Int
-             | Add a a 
-             | Mul a a
-
-printAlg :: ExprF String -> String
-printAlg (Const i) = show i
-printAlg (Add a b) = "(" ++ a ++ " + " ++ b ++ ")"
-printAlg (Mul a b) = a ++ " * " ++ b
-
-data Fix f = Fix {outF :: f (Fix f)}
-let fixedExpr =
-  Fix (Mul (Fix (Add (Fix $ Const 2) (Fix $ Const 2))) (Fix $ Const 2))
-```
-
-We can write a pretty-printing algebra for `ExprF`, but is it of any
-use?
-
-```
-cata :: Functor f => (f b -> b) -> Fix f -> b
-cata f = f . fmap (cata f) . outF
-
-> cata printAlg fixedExpr
-"(2 + 2) * 2"
-```
-
----
-
-class: middle
-
-```
-let fixedExpr =
-  Fix (Mul (Fix (Add (Fix $ Const 2) (Fix $ Const 2))) (Fix $ Const 2))
-
-cata :: Functor f => (f b -> b) -> Fix f -> b
-cata f = f . fmap (cata f) . outF
-
-getValue :: ExprF Int -> Int
-getValue (Const i) = i
-getValue (Add a b) = a + b
-getValue (Mul a b) = a * b
-
-> cata getValue fixedExp
-8
-```
----
-
-class: middle
-
-# Anamorphisms
-
-For unfolds we need an opposite of an algebra
-
-```
-type Coalgebra f a = a -> f a
-
-unwrap :: Coalgebra ExprF Int
-unwrap i
-  | i < 4     = Add (i + 1) (i + 2)
-  | otherwise = Const i
-```
-
-Can we just be lazy and flip around the types in `cata`?
-
-```
-cata f = f . fmap (cata f) . outF
-ana f = Fix . fmap (ana f) . f
-
-> :t ana
-ana :: Functor f => (a -> f a) -> a -> Fix f
-```
-
-```
-ana unwrap 1 --No instance for (Show (Fix ExprF)) arising from a use of ‘print’
-
-> cata printAlg $ ana unwrap 1
-"(((4 + 5) + 4) + (4 + 5))"
-```
----
-
-class: middle
-
-# Paramorphisms
-
-Stages that aren't leaves have no access to the original elements.
-Parsing folded is silly and often impossible.
-
-```
-type RAlgebra f a = f (Fix f, a) -> a
-```
-
-We get a tuple of an original element and the folded value
-
-```
-para :: forall f a . (Functor f) => RAlgebra f a -> Fix f -> a
-para rAlg = rAlg . fmap fanout . outF
-  where fanout :: Fix f -> (Fix f, a)
-        fanout t = (t, para rAlg t)
-```
-
-We can sum the additions up for a shorter output
-
-```
-concatSums :: RAlgebra ExprF String
-concatSums (Const i) = show i
-concatSums (Add (aExpr, _) (bExpr, _)) = 
-  show $ cata getValue aExpr + cata getValue bExpr
-concatSums (Mul (_, a) (_, b)) = a ++ " * " ++ b
-```
-
-```
-> para concatSums fixedExpr
-4 * 2
-```
-
----
-
-class: middle
-
-# Practical example, rotating a square
-
-```
-.x.. | .x..
-..x. | .x.x
-xxx. | .xx.
-.... | ....
-
-data QuadTreeF a r =
-    NodeF r r r r
-  | LeafF a
-  | EmptyF
-type QuadTree a = Fix (QuadTreeF a)
-```
-
-We need some helper functions
-
-```
-node :: QuadTree a -> QuadTree a -> QuadTree a -> QuadTree a -> QuadTree a
-node ul ur lr ll = Fix (NodeF ul ur lr ll)
-
-leaf :: a -> QuadTree a
-leaf = Fix . LeafF
-
-empty :: QuadTree a
-empty = Fix EmptyF
-```
----
-
-class: middle
-
-```
-.x..
-..x.
-xxx.
-....
-
-tree :: QuadTree Bool
-tree = node ul ur lr ll where
-  ul = node (leaf False) (leaf True) (leaf False) (leaf False)
-  ur = node (leaf False) (leaf False) (leaf False) (leaf True)
-  lr = node (leaf True) (leaf False) (leaf False) (leaf False)
-  ll = node (leaf True) (leaf True) (leaf False) (leaf False)
-
-rotate :: QuadTree a -> QuadTree a
-rotate = cata $ \case
-  NodeF ul ur lr ll -> node ll ul ur lr
-  LeafF a           -> leaf a
-  EmptyF            -> empty
-
-> rotate tree
-.x..
-.x.x
-.xx.
-....
-
-```
-
-It rotates!
----
-
-class: middle
-
-# Why recursion schemes?
-
-- clearer what is happening to individual elements in recursion -> less bugs
-- recursive data types make reasoning about certain problems easier
-- (sometimes) better compiler optimization of complex nonrecursive functions. Benchmarks from [vmchale/morphism-zoo](https://github.com/vmchale/morphism-zoo) execute with basically the same times for all methods unless the case is pretty degenerate
-- common vocabulary to reason about walking the trees
-- can you spot a similarity to the Free Monad?
-
-```
-    data Free f r = Free (f (Free f r)) | Pure r
-```
-
-
-[@monad_cat](https://twitter.com/monad_cat)

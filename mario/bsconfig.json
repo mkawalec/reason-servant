@@ -1,0 +1,7 @@
+{
+  "name" : "strona-dawida",
+  "sources": "src",
+  "bs-dependencies": [
+    "bs-webapi"
+  ]
+}

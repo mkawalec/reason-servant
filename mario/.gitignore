@@ -1,0 +1,7 @@
+node_modules
+dist
+.*.sw*
+yarn.lock
+lib
+.merlin
+.bsb.lock
