@@ -5,15 +5,9 @@ class: center, middle
 [@monad_cat](https://twitter.com/monad_cat)
 
 
----
-
-class: middle
-
-# What is Reason?
-
-- an OCaml compiler frontend that compiles to JS using bucklescript
-- JS-like syntax, but with more functional features we know and love
-- easy interop with JS
+```bash
+npm install -g bs-platform reason-cli
+```
 
 ---
 
@@ -42,6 +36,13 @@ let addNumbers = (a: number, b: number) => {
 
 let addTwo = addNumbers(2);
 
+```
+
+---
+class: middle
+
+```
+
 let value = "blahblah";
 
 type raw_object = {.
@@ -50,6 +51,7 @@ type raw_object = {.
 
 let withCount: raw_object = {
   pub count = 1337
+
 };
 
 => { "count": 1337 };
@@ -108,73 +110,6 @@ Converters are shallow, there is an open object
 ---
 class: middle
 
-# Named parameters
-
----
-class: middle
-
-# Binding into JS libraries
-
-```
-type subscription;
-type _observer('a, 'b) = {.
-  "closed": ref(bool),
-  [@bs.meth] "next": 'a => unit,
-  [@bs.meth] "error": 'b => unit,
-  [@bs.meth] "complete": unit => unit
-};
-
-type observer('a, 'b) = {
-  closed: ref(bool),
-  next: 'a => unit,
-  error: 'b => unit,
-  complete: unit => unit
-};
-type observable('a, 'b) = {.
-  [@bs.meth] "subscribe": (('a => unit), ('b => unit), (unit => unit)) => subscription
-};
-
-[@bs.scope "Observable"][@bs.module "@reactivex/rxjs/dist/cjs/Observable"][@bs.val] external createObservable: (_observer('a, 'b) => unit) => observable('a, 'b) = "create";
-
-type create('a, 'b) = (unit) => (observer('a, 'b), observable('a, 'b));
-
-let create: create('a, 'b) = () => {
-  let realObservers: ref(list(_observer('a, 'b))) = ref([]);
-  let observer: observer('a, 'b) = {
-    closed: ref(false),
-    next: (el) => {
-      List.map(o => o##next(el), realObservers^) |> ignore;
-    },
-    error: (err) => {
-      List.map(o => o##error(err), realObservers^) |> ignore;
-    },
-    complete: () => {
-      List.map(o => o##complete(), realObservers^) |> ignore;
-    }
-  };
-  let createResult = createObservable((o) => {
-    realObservers := Js_list.cons(o, realObservers^);
-  });
-
-  (observer, createResult);
-};
-```
-
-???
-
-Let's talk about how to bind into methods in an object. Should we have haskell types to compare this to?
-
-Notice that we can't use the subscription to anything, we haven't implemented that feature yet.
-
-Elements are read in order.
-
-What is bs.val about?
-
-Chaining with |> and the type of ignore
-
----
-class: middle
-
 # Null, undefined, option
 
 `Maybe` is `option`
@@ -197,6 +132,9 @@ And nullable can be automatically converted to `option` at the FFI boundary:
 type element;
 [@bs.val] [@bs.return nullable] [@bs.scope "document"] external getElementById : string => option(element) = "getElementById";
 ```
+
+---
+class: middle
 
 Advantage of this approach is that the conversion to `option` is only applied if the value isn't decructured at the point of calling the function:
 ```
@@ -248,12 +186,12 @@ module Second = {
 ```
 the same in-order reading applies.
 
-There is no way of controlling the exports from inside a `.re` file, you need an interface file for that. It can be automatically generated with
 ```
-bsc -bs-re-out lib/bs/src/yourFile.cmi
+module Second = {
+  open First;
+  let b = a;
+}
 ```
-
-Which will generate an interface file with all the types exported from a module that you can then tweak however you wish.
 
 ---
 class: middle
@@ -292,78 +230,27 @@ Unknown type because |. is part of the language (Reason/BuckleScript).
 ---
 class: middle
 
-# Parsing JSON (the compositional and parser combinator approaches)
-
-
----
-class: middle
-
-# Converters and helpers
-
----
-class: middle
-
 # Polymorphic variants
 
-Normal variants must be a member of a type:
-
+Polymorphic variants can exist on their own:
 ```
-# type food = Sandwitch | Flakes | Banana;
-# Flakes;
-
-- : food = Flakes
-```
-
-While polymorphic variants can exist on their own:
-```
-# `Flakes;
+`Flakes;
 
 - : [> `Flakes ] = `Flakes
 ```
 and can be used in multiple types:
 ```
-# type foo = [`Flakes | `Sandwitch];
-# type bar = [`Flakes];
+type foo = [`Flakes | `Sandwitch];
+type bar = [`Flakes];
 ```
 
 Equality is also the equality of constructors:
 ```
-# type foo = [`One | `Two];
-# type bar = [`Two | `One];
-# let id = (arg: foo) => arg;
-# let test: bar = `One;
-# id(test);
+type foo = [`One | `Two];
+type bar = [`Two | `One];
+let id = (arg: foo) => arg;
+let test: bar = `One;
+id(test);
 - : foo = `One;
 ```
----
-
-
-# What is ReasonML:
-- compiles to OCaml that uses the bucklescript compiler to output JS
-- JS like syntax with more functional features and a typesystem more advanced than Flow/TS but less advanced than Haskell - code is often faster than comparable JS (here some examples)
-    -> different function call syntax bracket-languages-like
-    -> named components
-    -> currying
-
-- easy interop with raw JS 
-      -> escape hatch of @bs.raw
-      -> call into an arbitrary method, preseve this
-      -> multiple ways of doing the same thing
-- focus on small, performant and error protected output, at the cost of more advanced features of the typesystem - maybe compare the output of PureScript and Reason for the same sample program, benchmark the output
-- show records vs objects, switch statements, importing raw JS
-- a bit weird module system, to someone coming from JS/Cpp/Haskell
-- describe React a bit, why it is a good paradigm for writing simple apps
-- how ReasonReact works?
-   -> Go through the tutorial
-   -> how events work?
-
-- sooo, what project do we want to have?
-
-
----
-
-class: middle
-
-# Can we do better?
-
 ---
