@@ -6,6 +6,7 @@ class: center, middle
 
 
 ```bash
+github.com/mkawalec/reason-servant
 npm install -g bs-platform reason-cli
 ```
 
@@ -254,3 +255,11 @@ id(test);
 - : foo = `One;
 ```
 ---
+
+class: middle
+
+[https://bucklescript.github.io/docs/en/installation.html](https://bucklescript.github.io/docs/en/installation.html)
+
+[https://reasonml.github.io/docs/en/quickstart-javascript.html](https://reasonml.github.io/docs/en/quickstart-javascript.html)
+
+[https://github.com/mkawalec/reason-servant/issues](https://github.com/mkawalec/reason-servant/issues)
