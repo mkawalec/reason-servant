@@ -31,7 +31,7 @@ type world = {
   viewport: fourAxisElement(float),
   scene: scene,
   lastAnimationTime: option(int)
-} 
+}
 and envElement = {
   coordinate: int,
   elementType: elementType
@@ -101,7 +101,7 @@ let paint = (world: world): unit => {
         fillStyleSet(world.scene.ctx, "#97FF29");
       };
       world.scene.ctx |. Canvas.fillRectFloat(
-        (float_of_int(paintIdx) -. xPaintOffset) *. tileSize, 
+        (float_of_int(paintIdx) -. xPaintOffset) *. tileSize,
         float_of_int(world.scene.h) -. (
           float_of_int(tile.coordinate) *. tileSize -. world.viewport.y
         ),
@@ -125,7 +125,7 @@ module Date = {
   [@bs.send] external getTime: t => int = "";
 };
 
-let findCollisions = (world: world, newX: float, newY: float): 
+let findCollisions = (world: world, newX: float, newY: float):
   option((int, envElement)) => {
     let beginningTile = int_of_float(newX /. tileSize);
     let endTiles = if (newX /. tileSize -. float_of_int(beginningTile) > 0.5) {
@@ -181,7 +181,8 @@ let step = (world: world): world => {
   let vX'' = -1.0 *. sign_float(vX') *. vDamping *. dT +. /* V damping */
     if (abs_float(vX') > maxV) { sign_float(vX') *. maxV } else { vX' };
   let newVX = if (abs_float(vX'') <= vDamping *. dT) { 0.0 } else { vX'' };
-
+  let newViewPortY = if (world.hero.y > 200.0) { world.viewport.y +. newVY *. dT } else {world.viewport.y};
+  let newViewPortX = if (world.hero.x > 200.0) { world.viewport.x +. newVX *. dT } else {world.viewport.x};
   let newY = world.hero.y +. newVY *. dT;
 
   let boundLeft = 0.;
@@ -202,7 +203,13 @@ let step = (world: world): world => {
         y: float_of_int(collidedTile.coordinate + 1) *. tileSize,
         vx: newVX,
         vy: 0.0
-      }};
+      },
+      viewport: {
+        x: newViewPortX,
+        y: newViewPortY,
+        vx: 0.0,
+        vy: 0.0
+    }};
     };
   };
 };
