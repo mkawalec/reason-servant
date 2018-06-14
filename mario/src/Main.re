@@ -30,8 +30,9 @@ type world = {
   hero: fourAxisElement(float),
   viewport: fourAxisElement(float),
   scene: scene,
-  lastAnimationTime: option(int)
-}
+  lastAnimationTime: option(int),
+  munitions: array(fourAxisElement(float))
+} 
 and envElement = {
   coordinate: int,
   elementType: elementType
@@ -117,6 +118,15 @@ let paint = (world: world): unit => {
     float_of_int(world.scene.h) -. (world.hero.y -. world.viewport.y),
     heroSize,
     tileSize);
+
+  fillStyleSet(world.scene.ctx, "#000000");
+  Array.iter(bullet => {
+    world.scene.ctx |. Canvas.fillRectFloat(
+      bullet.x -. xPaintOffset *. tileSize,
+      float_of_int(world.scene.h) -. (bullet.y -. world.viewport.y),
+      tileSize /. 4.0,
+      tileSize /. 8.0);
+  }, world.munitions)
 };
 
 module Date = {
@@ -189,6 +199,30 @@ let step = (world: world): world => {
   let boundRight = float_of_int(world.scene.w) -. heroSize;
   let newX = max(boundLeft, min(boundRight, world.hero.x +. newVX *. dT));
 
+  let newPossibleMunitions = Array.map(bullet => {
+    {
+      x: bullet.x +. bullet.vx,
+      y: bullet.y +. bullet.vy,
+      vx: bullet.vx -. 0.003,
+      vy: bullet.vy -. 0.02,
+    }
+  }, world.munitions);
+
+  let newMunitions = Array.fold_left((acc, b) => {
+    switch (findCollisions(world, b.x, b.y)) {
+      | None => {
+        if (b.x > world.viewport.x) {
+          Array.append(acc, [|b|]);
+        } else {
+          acc;
+        }
+      };
+      | Some((_, _)) => acc;
+    };
+  }, [||], newPossibleMunitions);
+
+  Js.log(newMunitions);
+
   /* detect collisions */
   switch (findCollisions(world, newX, newY)) {
     | None => {...world, hero: {
@@ -196,7 +230,7 @@ let step = (world: world): world => {
       y: newY,
       vx: newVX,
       vy: newVY
-    }};
+    }, munitions: newMunitions};
     | Some((_, collidedTile)) => {
       {...world, hero: {
         x: newX,
@@ -209,7 +243,9 @@ let step = (world: world): world => {
         y: newViewPortY,
         vx: 0.0,
         vy: 0.0
-    }};
+      },
+      munitions: newMunitions
+      };
     };
   };
 };
@@ -239,6 +275,10 @@ let mainLoop = (world: world) => {
         leftClicked: true,
         rightClicked: false
       }};
+    } else if (key(e) === " ") {
+      currentWorld := {...currentWorld^, munitions: Array.append(currentWorld^.munitions, [|
+        {...currentWorld^.hero, vy: 0.3, vx: 9.9}
+      |])}
     };
   }, world.scene.node);
 
@@ -296,7 +336,8 @@ let initialize = (): option(world) => {
           leftClicked: false,
           rightClicked: false
         },
-        lastAnimationTime: None
+        lastAnimationTime: None,
+        munitions: [||],
       });
     }
   };
