@@ -14,6 +14,7 @@ module Canvas = {
   [@bs.send] external getContext2d: (Dom.element, [@bs.as "2d"] _) => context = "getContext";
   [@bs.send] external fillRectFloat: (context, float, float, float, float) => unit = "fillRect";
   [@bs.send] external fillRectInt: (context, int, int, int, int) => unit = "fillRect";
+  [@bs.send] external fillText: (context, string, int, int) => unit = "";
 
   [@bs.send] external clearRect: (context, int, int, int, int) => unit = "";
   [@bs.send] external strokeRect: (context, int, int, int, int) => unit = "";
@@ -52,6 +53,7 @@ and scene = {
   node: Dom.element,
   w: int,
   h: int,
+  score: int,
   leftClicked: bool,
   rightClicked: bool
 };
@@ -113,6 +115,8 @@ let paint = (world: world): unit => {
         tileSize);
     }, tiles);
   });
+
+  Canvas.fillText(world.scene.ctx, "Score: " ++ string_of_int(world.scene.score) , 10, 50);
 
   /* Draw all heroes */
   List.iter(hero => {
@@ -198,7 +202,7 @@ let step = (world: world): world => {
 
     /* detect collisions */
     switch (findCollisions(world, newX, newY)) {
-      | None => {...world, heroes: List.append(world.heroes, [{...hero, 
+      | None => {...world, heroes: List.append(world.heroes, [{...hero,
       position: {
         x: newX,
         y: newY,
@@ -306,6 +310,7 @@ let initialize = (): option(world) => {
           node: scene,
           w: canvasWidth,
           h: canvasHeight,
+          score: 0,
           leftClicked: false,
           rightClicked: false
         },
