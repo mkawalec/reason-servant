@@ -90,11 +90,11 @@ let generateRandomEnvironment = (length: int): array(array(envElement)) => {
 let tileSize = 40.0;
 let heroSize = tileSize /. 2.0;
 
-let constrain = (amt: float, low: int, high: int): float => {
-  max(float_of_int(low), min(float_of_int(high), amt))
+let constrain = (amt: float, low: float, high: float): float => {
+  max(low, min(high, amt))
 }
-let constrainLeft = (amt: float, low: int): float => {
-  max(float_of_int(low), amt)
+let constrainLeft = (amt: float, low: float): float => {
+  max(low, amt)
 }
 
 let paint = (world: world): unit => {
@@ -195,7 +195,7 @@ let paintHero = (dT: float, world: world, hero: hero): world => {
   let newViewPortY = if (hero.position.y > 200.0) { world.viewport.y +. newVY *. dT } else {world.viewport.y};
   let magicViewportNumber = 2.0175;
   let newViewPortX = if (hero.position.x > 200.0) { 
-    constrainLeft(world.viewport.x +. newVX *. dT /. magicViewportNumber, 0) 
+    constrainLeft(world.viewport.x +. newVX *. dT /. magicViewportNumber, 0.) 
   } else {
     world.viewport.x
   };
@@ -203,7 +203,7 @@ let paintHero = (dT: float, world: world, hero: hero): world => {
 
   let boundLeft  = world.viewport.x;
   let boundRight = float_of_int(world.scene.w) -. heroSize +. world.viewport.x;
-  let newX = max(boundLeft, min(boundRight, hero.position.x +. newVX *. dT));
+  let newX = constrain(hero.position.x +. newVX *. dT, boundLeft, boundRight);
 
   /* detect collisions */
   switch (findCollisions(world, newX, newY)) {
