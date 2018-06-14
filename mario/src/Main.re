@@ -238,11 +238,15 @@ let mainLoop = (world: world) => {
     /* TODO: use some kind of smart typesafe collection */
     if (key(e) === "ArrowUp") {
       currentWorld := List.fold_left((world, hero) => {
-        let jumpingHero = {...hero, position: {...hero.position,
-          vy: 0.4
-        }};
+        if (canHeroJump(hero)) {
+          let jumpingHero = {...hero, position: {...hero.position,
+            vy: 0.4
+          }};
 
-        {...world, heroes: List.append(world.heroes, [jumpingHero])};
+          {...world, heroes: List.append(world.heroes, [jumpingHero])};
+        } else {
+          {...world, heroes: List.append(world.heroes, [hero])};
+        }
       }, {...currentWorld^, heroes: []}, currentWorld^.heroes);
     } else if (key(e) === "ArrowRight") {
       currentWorld := {...currentWorld^, scene: {...currentWorld^.scene,
