@@ -161,9 +161,60 @@ let dV = 0.005;
 let vDamping = dV /. 10.0;
 let maxV = 0.2;
 
-let step = (world: world): world => {
+let paintHero = (dT: float, world: world, hero: hero): world => {
   open Js_math;
 
+  let newVY = hero.position.vy -. 0.00981;
+  let leftDV = if (world.scene.leftClicked) {
+    dT *. dV;
+  } else {
+    0.0;
+  };
+  let rightDV = if (world.scene.rightClicked) {
+    dT *. dV;
+  } else {
+    0.0;
+  };
+  let vX' = hero.position.vx +. rightDV -. leftDV;
+  let vX'' = -1.0 *. sign_float(vX') *. vDamping *. dT +. /* V damping */
+    if (abs_float(vX') > maxV) { sign_float(vX') *. maxV } else { vX' };
+  let newVX = if (abs_float(vX'') <= vDamping *. dT) { 0.0 } else { vX'' };
+  let newViewPortY = if (hero.position.y > 200.0) { world.viewport.y +. newVY *. dT } else {world.viewport.y};
+  let newViewPortX = if (hero.position.x > 200.0) { world.viewport.x +. newVX *. dT } else {world.viewport.x};
+  let newY = hero.position.y +. newVY *. dT;
+
+  let boundLeft = 0.;
+  let boundRight = float_of_int(world.scene.w) -. heroSize;
+  let newX = max(boundLeft, min(boundRight, hero.position.x +. newVX *. dT));
+
+  /* detect collisions */
+  switch (findCollisions(world, newX, newY)) {
+    | None => {...world, heroes: List.append(world.heroes, [{...hero, 
+    position: {
+      x: newX,
+      y: newY,
+      vx: newVX,
+      vy: newVY
+    }}])};
+    | Some((_, collidedTile)) => {
+      {...world, heroes: List.append(world.heroes, [{...hero,
+      position: {
+        x: newX,
+        y: float_of_int(collidedTile.coordinate + 1) *. tileSize,
+        vx: newVX,
+        vy: 0.0
+      }}]),
+      viewport: {
+        x: newViewPortX,
+        y: newViewPortY,
+        vx: 0.0,
+        vy: 0.0
+    }};
+    };
+  };
+};
+
+let step = (world: world): world => {
   let currentTime = Date.create() |> Date.getTime;
 
   let dT = switch(world.lastAnimationTime) {
@@ -172,56 +223,8 @@ let step = (world: world): world => {
   };
 
   /* TODO: make nicer */
-  List.fold_left((world, hero) => {
-    let newVY = hero.position.vy -. 0.00981;
-    let leftDV = if (world.scene.leftClicked) {
-      dT *. dV;
-    } else {
-      0.0;
-    };
-    let rightDV = if (world.scene.rightClicked) {
-      dT *. dV;
-    } else {
-      0.0;
-    };
-    let vX' = hero.position.vx +. rightDV -. leftDV;
-    let vX'' = -1.0 *. sign_float(vX') *. vDamping *. dT +. /* V damping */
-      if (abs_float(vX') > maxV) { sign_float(vX') *. maxV } else { vX' };
-    let newVX = if (abs_float(vX'') <= vDamping *. dT) { 0.0 } else { vX'' };
-    let newViewPortY = if (hero.position.y > 200.0) { world.viewport.y +. newVY *. dT } else {world.viewport.y};
-    let newViewPortX = if (hero.position.x > 200.0) { world.viewport.x +. newVX *. dT } else {world.viewport.x};
-    let newY = hero.position.y +. newVY *. dT;
-
-    let boundLeft = 0.;
-    let boundRight = float_of_int(world.scene.w) -. heroSize;
-    let newX = max(boundLeft, min(boundRight, hero.position.x +. newVX *. dT));
-
-    /* detect collisions */
-    switch (findCollisions(world, newX, newY)) {
-      | None => {...world, heroes: List.append(world.heroes, [{...hero, 
-      position: {
-        x: newX,
-        y: newY,
-        vx: newVX,
-        vy: newVY
-      }}])};
-      | Some((_, collidedTile)) => {
-        {...world, heroes: List.append(world.heroes, [{...hero,
-        position: {
-          x: newX,
-          y: float_of_int(collidedTile.coordinate + 1) *. tileSize,
-          vx: newVX,
-          vy: 0.0
-        }}]),
-        viewport: {
-          x: newViewPortX,
-          y: newViewPortY,
-          vx: 0.0,
-          vy: 0.0
-      }};
-      };
-    };
-  }, {...world, heroes: []}, world.heroes);
+  List.fold_left(paintHero(dT), 
+    {...world, heroes: []}, world.heroes);
 };
 
 let mainLoop = (world: world) => {
