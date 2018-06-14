@@ -57,9 +57,24 @@ let canHeroJump = (world: world) => {
 }
 
 
+let stone = (coord : int): envElement => {
+  let q = {coordinate: coord, elementType: Stone};
+  q;
+};
+
 let generateRandomEnvironment = (length: int): array(array(envElement)) => {
   let baseElement = {coordinate: 0, elementType: Floor};
-  Array.make_matrix(length, 1, baseElement);
+  let m = Array.make_matrix(length, 20, baseElement);
+  m[10][1] = stone(3);
+  m[11][1] = stone(3);
+  m[12][1] = stone(3);
+  m[18][1] = stone(4);
+  m[19][1] = stone(4);
+  m[20][1] = stone(4);
+  m[22][1] = stone(11);
+  m[24][1] = stone(6);
+  m[27][1] = stone(8);
+  m;
 };
 
 let tileSize = 40.0;
@@ -77,10 +92,14 @@ let paint = (world: world): unit => {
   Canvas.fillRectInt(world.scene.ctx, 0, 0, world.scene.w, world.scene.h);
 
   /* Draw the ground */
-  fillStyleSet(world.scene.ctx, "#97FF29");
   ArrayUtil.iterRange(envPaintStart, envPaintEnd, world.env, (idx, tiles) => {
     let paintIdx = idx - envPaintStart;
     Array.iter(tile => {
+      if (tile.elementType == Stone) {
+        fillStyleSet(world.scene.ctx, "#aaaaaa");
+      } else {
+        fillStyleSet(world.scene.ctx, "#97FF29");
+      };
       world.scene.ctx |. Canvas.fillRectFloat(
         (float_of_int(paintIdx) -. xPaintOffset) *. tileSize, 
         float_of_int(world.scene.h) -. (
@@ -121,7 +140,8 @@ let findCollisions = (world: world, newX: float, newY: float):
         collided;
       } else {
         Array.fold_left((collided_, tile) => {
-          if (int_of_float(newY) <= (tile.coordinate + 1) * int_of_float(tileSize)) {
+          if ((int_of_float(newY) <= (tile.coordinate + 1) * int_of_float(tileSize))  &&
+              (int_of_float(newY) >= tile.coordinate * int_of_float(tileSize))) {
             Some((column, tile));
           } else {
             collided_;
