@@ -52,6 +52,10 @@ and scene = {
   rightClicked: bool
 };
 
+let canHeroJump = (world: world) => {
+  world.hero.vy === 0.0;
+}
+
 
 let generateRandomEnvironment = (length: int): array(array(envElement)) => {
   let baseElement = {coordinate: 0, elementType: Floor};
@@ -190,9 +194,11 @@ let mainLoop = (world: world) => {
     /* if key up jump, if right, keep adding speed until max */
     /* TODO: use some kind of smart typesafe collection */
     if (key(e) === "ArrowUp") {
-      currentWorld := {...currentWorld^, hero: {...currentWorld^.hero,
-        vy: 0.4
-      }};
+      if (canHeroJump(currentWorld^)) {
+        currentWorld := {...currentWorld^, hero: {...currentWorld^.hero,
+          vy: 0.4
+        }};
+      }
     } else if (key(e) === "ArrowRight") {
       currentWorld := {...currentWorld^, scene: {...currentWorld^.scene,
         rightClicked: true,
