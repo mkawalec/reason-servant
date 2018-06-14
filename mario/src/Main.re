@@ -60,6 +60,12 @@ let canHeroJump = (hero: hero) => {
   hero.position.vy === 0.0;
 }
 
+let paintColor = (elementType: elementType): string => {
+  switch(elementType) {
+  | Floor => "#97FF29"
+  | _     => "#aaaaaa"
+  }
+}
 
 let stone = (coord : int): envElement => {
   let q = {coordinate: coord, elementType: Stone};
@@ -87,25 +93,25 @@ let heroSize = tileSize /. 2.0;
 let paint = (world: world): unit => {
   open Canvas;
 
-  let envPaintStart = int_of_float(world.viewport.x /. tileSize);
-  let xPaintOffset = world.viewport.x /. tileSize -. float_of_int(envPaintStart);
-  let envPaintEnd = int_of_float(float_of_int(world.scene.w) /. tileSize) + envPaintStart;
+  let envPaintStart = 0; /* TODO: Fix me */
+  let xPaintOffset = world.viewport.x /. tileSize;
+  let envPaintEnd = int_of_float((float_of_int(world.scene.w) +. world.viewport.x) /. tileSize) + 1;
 
   /* Draw the sky */
   fillStyleSet(world.scene.ctx, "#008AC5");
   Canvas.fillRectInt(world.scene.ctx, 0, 0, world.scene.w, world.scene.h);
 
-  /* Draw the ground */
+  /* Draw the tiles */
   ArrayUtil.iterRange(envPaintStart, envPaintEnd, world.env, (idx, tiles) => {
     let paintIdx = idx - envPaintStart;
     Array.iter(tile => {
-      if (tile.elementType == Stone) {
-        fillStyleSet(world.scene.ctx, "#aaaaaa");
-      } else {
-        fillStyleSet(world.scene.ctx, "#97FF29");
+      let xOffset = switch (tile.elementType) {
+      | Floor => 0.
+      | _     => xPaintOffset
       };
+      fillStyleSet(world.scene.ctx, paintColor(tile.elementType));
       world.scene.ctx |. Canvas.fillRectFloat(
-        (float_of_int(paintIdx) -. xPaintOffset) *. tileSize,
+        (float_of_int(paintIdx) -. xOffset) *. tileSize,
         float_of_int(world.scene.h) -. (
           float_of_int(tile.coordinate) *. tileSize -. world.viewport.y
         ),
