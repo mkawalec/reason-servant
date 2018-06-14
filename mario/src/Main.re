@@ -63,7 +63,7 @@ let generateRandomEnvironment = (length: int): array(array(envElement)) => {
 };
 
 let tileSize = 40.0;
-
+let heroSize = tileSize /. 2.0;
 
 let paint = (world: world): unit => {
   open Canvas;
@@ -96,7 +96,7 @@ let paint = (world: world): unit => {
   world.scene.ctx |. Canvas.fillRectFloat(
     world.hero.x -. xPaintOffset *. tileSize,
     float_of_int(world.scene.h) -. (world.hero.y -. world.viewport.y),
-    tileSize /. 2.0,
+    heroSize,
     tileSize);
 };
 
@@ -163,7 +163,10 @@ let step = (world: world): world => {
   let newVX = if (abs_float(vX'') <= vDamping *. dT) { 0.0 } else { vX'' };
 
   let newY = world.hero.y +. newVY *. dT;
-  let newX = world.hero.x +. newVX *. dT;
+
+  let boundLeft = 0.;
+  let boundRight = float_of_int(world.scene.w) -. heroSize;
+  let newX = max(boundLeft, min(boundRight, world.hero.x +. newVX *. dT));
 
   /* detect collisions */
   switch (findCollisions(world, newX, newY)) {
