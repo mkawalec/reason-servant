@@ -201,8 +201,8 @@ let paintHero = (dT: float, world: world, hero: hero): world => {
   };
   let newY = hero.position.y +. newVY *. dT;
 
-  let boundLeft = 0.;
-  let boundRight = float_of_int(world.scene.w) -. heroSize;
+  let boundLeft  = world.viewport.x;
+  let boundRight = float_of_int(world.scene.w) -. heroSize +. world.viewport.x;
   let newX = max(boundLeft, min(boundRight, hero.position.x +. newVX *. dT));
 
   /* detect collisions */
