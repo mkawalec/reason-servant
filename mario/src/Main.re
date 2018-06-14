@@ -27,10 +27,14 @@ module ArrayUtil = {
 
 type world = {
   env: array(array(envElement)),
-  hero: fourAxisElement(float),
+  heroes: list(hero),
   viewport: fourAxisElement(float),
   scene: scene,
   lastAnimationTime: option(int)
+}
+and hero = {
+  color: string,
+  position: fourAxisElement(float)
 }
 and envElement = {
   coordinate: int,
@@ -52,8 +56,8 @@ and scene = {
   rightClicked: bool
 };
 
-let canHeroJump = (world: world) => {
-  world.hero.vy === 0.0;
+let canHeroJump = (hero: hero) => {
+  hero.position.vy === 0.0;
 }
 
 
@@ -110,13 +114,15 @@ let paint = (world: world): unit => {
     }, tiles);
   });
 
-  /* Draw our hero */
-  fillStyleSet(world.scene.ctx, "#00deff");
-  world.scene.ctx |. Canvas.fillRectFloat(
-    world.hero.x -. xPaintOffset *. tileSize,
-    float_of_int(world.scene.h) -. (world.hero.y -. world.viewport.y),
-    heroSize,
-    tileSize);
+  /* Draw all heroes */
+  List.iter(hero => {
+    fillStyleSet(world.scene.ctx, hero.color);
+    world.scene.ctx |. Canvas.fillRectFloat(
+      hero.position.x -. xPaintOffset *. tileSize,
+      float_of_int(world.scene.h) -. (hero.position.y -. world.viewport.y),
+      heroSize,
+      tileSize);
+  }, world.heroes);
 };
 
 module Date = {
@@ -166,52 +172,56 @@ let step = (world: world): world => {
   };
 
   /* TODO: make nicer */
-  let newVY = world.hero.vy -. 0.00981;
-  let leftDV = if (world.scene.leftClicked) {
-    dT *. dV;
-  } else {
-    0.0;
-  };
-  let rightDV = if (world.scene.rightClicked) {
-    dT *. dV;
-  } else {
-    0.0;
-  };
-  let vX' = world.hero.vx +. rightDV -. leftDV;
-  let vX'' = -1.0 *. sign_float(vX') *. vDamping *. dT +. /* V damping */
-    if (abs_float(vX') > maxV) { sign_float(vX') *. maxV } else { vX' };
-  let newVX = if (abs_float(vX'') <= vDamping *. dT) { 0.0 } else { vX'' };
-  let newViewPortY = if (world.hero.y > 200.0) { world.viewport.y +. newVY *. dT } else {world.viewport.y};
-  let newViewPortX = if (world.hero.x > 200.0) { world.viewport.x +. newVX *. dT } else {world.viewport.x};
-  let newY = world.hero.y +. newVY *. dT;
-
-  let boundLeft = 0.;
-  let boundRight = float_of_int(world.scene.w) -. heroSize;
-  let newX = max(boundLeft, min(boundRight, world.hero.x +. newVX *. dT));
-
-  /* detect collisions */
-  switch (findCollisions(world, newX, newY)) {
-    | None => {...world, hero: {
-      x: newX,
-      y: newY,
-      vx: newVX,
-      vy: newVY
-    }};
-    | Some((_, collidedTile)) => {
-      {...world, hero: {
-        x: newX,
-        y: float_of_int(collidedTile.coordinate + 1) *. tileSize,
-        vx: newVX,
-        vy: 0.0
-      },
-      viewport: {
-        x: newViewPortX,
-        y: newViewPortY,
-        vx: 0.0,
-        vy: 0.0
-    }};
+  List.fold_left((world, hero) => {
+    let newVY = hero.position.vy -. 0.00981;
+    let leftDV = if (world.scene.leftClicked) {
+      dT *. dV;
+    } else {
+      0.0;
     };
-  };
+    let rightDV = if (world.scene.rightClicked) {
+      dT *. dV;
+    } else {
+      0.0;
+    };
+    let vX' = hero.position.vx +. rightDV -. leftDV;
+    let vX'' = -1.0 *. sign_float(vX') *. vDamping *. dT +. /* V damping */
+      if (abs_float(vX') > maxV) { sign_float(vX') *. maxV } else { vX' };
+    let newVX = if (abs_float(vX'') <= vDamping *. dT) { 0.0 } else { vX'' };
+    let newViewPortY = if (hero.position.y > 200.0) { world.viewport.y +. newVY *. dT } else {world.viewport.y};
+    let newViewPortX = if (hero.position.x > 200.0) { world.viewport.x +. newVX *. dT } else {world.viewport.x};
+    let newY = hero.position.y +. newVY *. dT;
+
+    let boundLeft = 0.;
+    let boundRight = float_of_int(world.scene.w) -. heroSize;
+    let newX = max(boundLeft, min(boundRight, hero.position.x +. newVX *. dT));
+
+    /* detect collisions */
+    switch (findCollisions(world, newX, newY)) {
+      | None => {...world, heroes: List.append(world.heroes, [{...hero, 
+      position: {
+        x: newX,
+        y: newY,
+        vx: newVX,
+        vy: newVY
+      }}])};
+      | Some((_, collidedTile)) => {
+        {...world, heroes: List.append(world.heroes, [{...hero,
+        position: {
+          x: newX,
+          y: float_of_int(collidedTile.coordinate + 1) *. tileSize,
+          vx: newVX,
+          vy: 0.0
+        }}]),
+        viewport: {
+          x: newViewPortX,
+          y: newViewPortY,
+          vx: 0.0,
+          vy: 0.0
+      }};
+      };
+    };
+  }, {...world, heroes: []}, world.heroes);
 };
 
 let mainLoop = (world: world) => {
@@ -224,11 +234,13 @@ let mainLoop = (world: world) => {
     /* if key up jump, if right, keep adding speed until max */
     /* TODO: use some kind of smart typesafe collection */
     if (key(e) === "ArrowUp") {
-      if (canHeroJump(currentWorld^)) {
-        currentWorld := {...currentWorld^, hero: {...currentWorld^.hero,
+      currentWorld := List.fold_left((world, hero) => {
+        let jumpingHero = {...hero, position: {...hero.position,
           vy: 0.4
         }};
-      }
+
+        {...world, heroes: List.append(world.heroes, [jumpingHero])};
+      }, {...currentWorld^, heroes: []}, currentWorld^.heroes);
     } else if (key(e) === "ArrowRight") {
       currentWorld := {...currentWorld^, scene: {...currentWorld^.scene,
         rightClicked: true,
@@ -269,11 +281,6 @@ let mainLoop = (world: world) => {
   requestFrame();
 };
 
-/*
-   TODO:
-   - listen to keyboard events
-*/
-
 let initialize = (): option(world) => {
   switch (Document.getElementById("scene", document)) {
     | None => None;
@@ -286,7 +293,13 @@ let initialize = (): option(world) => {
 
       Some({
         env: generateRandomEnvironment(80),
-        hero: {x: 80.0, y: 80.0, vx: 0.0, vy: 0.0},
+        heroes: [{
+          color: "#00deff",
+          position:{x: 80.0, y: 80.0, vx: 0.0, vy: 0.0}
+        }, {
+          color: "#ee0000",
+          position:{x: 120.0, y: 80.0, vx: 0.0, vy: 0.0}
+        }],
         viewport: {x: 0.0, y: -80.0, vx: 0.0, vy: 0.0},
         scene: {
           ctx: scene |. Canvas.getContext2d,
