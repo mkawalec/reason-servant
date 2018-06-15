@@ -59,6 +59,7 @@ module Canvas = {
   [@bs.send] external getContext2d: (Dom.element, [@bs.as "2d"] _) => context = "getContext";
   [@bs.send] external fillRectFloat: (context, float, float, float, float) => unit = "fillRect";
   [@bs.send] external fillRectInt: (context, int, int, int, int) => unit = "fillRect";
+  [@bs.send] external drawImage: (context, Dom.element, int, int, int, int) => unit = "drawImage";
 
   [@bs.send] external clearRect: (context, int, int, int, int) => unit = "";
   [@bs.send] external strokeRect: (context, int, int, int, int) => unit = "";
@@ -75,7 +76,8 @@ type world = {
   heroes: list(hero),
   viewport: fourAxisElement(float),
   scene: scene,
-  lastAnimationTime: option(int)
+  lastAnimationTime: option(int),
+  recentKeys: list(string),
 }
 and hero = {
   color: string,
@@ -98,11 +100,49 @@ and scene = {
   w: int,
   h: int,
   leftClicked: bool,
-  rightClicked: bool
+  rightClicked: bool,
+  skyImage: option(Dom.element),
 };
 
 let canHeroJump = (hero: hero) => {
   hero.position.vy === 0.0;
+}
+
+let setRecentKeys = (world: world, newKey: string) => {
+  let newRecent = List.append(world.recentKeys, [newKey]);
+  let recentKeys = if (List.length(newRecent) > 10) {
+    List.tl(newRecent);
+  } else {
+    newRecent;
+  };
+  {...world, recentKeys: recentKeys};
+}
+
+let didKonami = (recentKeys: list(string)) => {
+  recentKeys == [
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowLeft",
+    "ArrowRight",
+    "b",
+    "a",
+  ];
+}
+
+let setSkyImage = (world: world) => {
+  let skyImage = if (world.scene.skyImage == None) {
+    let pics = HtmlCollection.toArray(Document.getElementsByClassName("deadmeme", document));
+    Some(pics[Random.int(Array.length(pics))]);
+  } else {
+    world.scene.skyImage;
+  };
+  {...world, scene: {...world.scene,
+      skyImage: skyImage
+  }};
 }
 
 let paintColor = (elementType: elementType): string => {
@@ -118,6 +158,7 @@ let stone = (coord : int): envElement => {
 };
 
 let generateRandomEnvironment = (length: int): array(array(envElement)) => {
+  Random.self_init();
   let baseElement = {coordinate: 0, elementType: Floor};
   let m = Array.make_matrix(length, 20, baseElement);
   m[10][1] = stone(3);
@@ -135,9 +176,20 @@ let generateRandomEnvironment = (length: int): array(array(envElement)) => {
 let tileSize = 40.0;
 let heroSize = tileSize /. 2.0;
 
+let drawSky = (world: world): unit => {
+  open Canvas;
+  fillStyleSet(world.scene.ctx, "#008AC5");
+  Canvas.fillRectInt(world.scene.ctx, 0, 0, world.scene.w, world.scene.h);
+  switch (world.scene.skyImage) {
+  | None => ();
+  | Some(pic) => Canvas.drawImage(world.scene.ctx, pic, 250, 100, world.scene.w - 500, world.scene.h - 200);
+  };
+}
+
 let constrain = (amt: float, low: float, high: float): float => {
   max(low, min(high, amt))
 }
+
 let constrainLeft = (amt: float, low: float): float => {
   max(low, amt)
 }
@@ -150,8 +202,7 @@ let paint = (world: world): unit => {
   let envPaintEnd = int_of_float((float_of_int(world.scene.w) +. world.viewport.x) /. tileSize) + 1;
 
   /* Draw the sky */
-  fillStyleSet(world.scene.ctx, "#008AC5");
-  Canvas.fillRectInt(world.scene.ctx, 0, 0, world.scene.w, world.scene.h);
+  drawSky(world);
 
   /* Draw the tiles */
   ArrayUtil.iterRange(envPaintStart, envPaintEnd, world.env, (idx, tiles) => {
@@ -327,6 +378,12 @@ let mainLoop = (world: world) => {
   Element.addKeyUpEventListener((e) => {
     open KeyboardEvent;
 
+    currentWorld := setRecentKeys(currentWorld^, key(e));
+
+    if (didKonami(currentWorld^.recentKeys)) {
+      currentWorld := setSkyImage(currentWorld^);
+    };
+
     if (key(e) === "ArrowRight") {
       currentWorld := {...currentWorld^, scene: {...currentWorld^.scene,
         rightClicked: false
@@ -377,9 +434,11 @@ let initialize = (): option(world) => {
           w: canvasWidth,
           h: canvasHeight,
           leftClicked: false,
-          rightClicked: false
+          rightClicked: false,
+          skyImage: None
         },
-        lastAnimationTime: None
+        lastAnimationTime: None,
+        recentKeys: []
       });
     }
   };

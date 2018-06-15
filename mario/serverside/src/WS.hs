@@ -58,7 +58,7 @@ broadcast uuid message state = forM_ accts sendToClient
 hasAccount :: AcidState AccountsState -> UUID -> IO Bool
 hasAccount accounts uuid = do
   users <- liftIO $ query accounts QueryState
-  return . not . null $ filter (\(Account uid _ _) -> uuid == uid) (Set.toList users)
+  return . not . null $ filter (\(Account uid _ _ _) -> uuid == uid) (Set.toList users)
 
 application :: TVar WSState -> AcidState AccountsState -> W.ServerApp
 application clients accounts pending = do
