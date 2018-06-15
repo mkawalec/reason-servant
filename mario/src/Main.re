@@ -35,8 +35,17 @@ module RP = {
   };
 };
 
+type user = {
+  uid: string,
+  username: string,
+  score: int
+};
+
+[@bs.val] [@bs.scope "JSON"] external parseUsers : string => array(user) = "parse";
+
 RP.makeRequest({ url: "http://127.0.0.1:8081/users", method: `GET }) |> Js.Promise.then_(value => {
-  Js.log(value);
+  let parsed: array(user) = parseUsers(value);
+  Js.log(parsed);
   Js.Promise.resolve(());
 });
 
