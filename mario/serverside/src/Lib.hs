@@ -26,6 +26,7 @@ import Control.Monad.Trans.Either
 
 import Data.UUID (UUID)
 import qualified Data.UUID.V4 as Uuid
+import Network.Wai.Middleware.Cors (simpleCors)
 
 data Account = Account {
   uid :: UUID
@@ -91,7 +92,9 @@ server state = register :<|> users :<|> score
           return newAccount
 
         users :: Handler (Set Account)
-        users = liftIO $ query state QueryState
+        users = do
+          liftIO $ putStrLn "users called"
+          liftIO $ query state QueryState
 
         score :: UUID -> ScoreUpdate -> Handler ()
         score uuid (ScoreUpdate newScore) = do
@@ -107,10 +110,7 @@ api :: Proxy API
 api = Proxy
 
 app :: AcidState AccountsState -> Application
-app acid = serve api (server acid)
-
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+app acid = simpleCors $ serve api (server acid)
 
 -- TODO:
 -- POST /register

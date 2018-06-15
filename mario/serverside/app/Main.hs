@@ -2,12 +2,13 @@ module Main where
 
 import Lib
 import qualified WS as WS
-import qualified WebSockets as WebSockets
+import qualified Network.WebSockets as WebSockets
 
 import Network.Wai.Handler.Warp
 import Data.Acid
 import qualified Data.Set as Set
 import Control.Concurrent.STM.TVar
+import Control.Concurrent (forkIO)
 
 main :: IO ()
 main = do 

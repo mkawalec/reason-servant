@@ -4,6 +4,42 @@ open Webapi.Dom;
   require('../../../src/style.less');
 |}];
 
+module RP = {
+  [@bs.deriving jsConverter]
+  type requestMethod = [ 
+    | [@bs.as "GET"] `GET 
+    | [@bs.as "POST"] `POST 
+    | [@bs.as "PUT"] `PUT 
+    | [@bs.as "DELETE"] `DELETE
+  ];
+
+  type request = {
+    url: string,
+    method: requestMethod
+  };
+
+  type internalRequest = {.
+    "uri": string,
+    "method": string
+  };
+
+  [@bs.module] external internalMakeRequest : internalRequest => Js.Promise.t('a) = "request-promise";
+
+  let makeRequest = (request: request): Js.Promise.t('a) => {
+    let payload = {
+      "uri": request.url,
+      "method": requestMethodToJs(request.method)
+    };
+    Js.log(payload);
+    internalMakeRequest(payload);
+  };
+};
+
+RP.makeRequest({ url: "http://127.0.0.1:8081/users", method: `GET }) |> Js.Promise.then_(value => {
+  Js.log(value);
+  Js.Promise.resolve(());
+});
+
 module Canvas = {
   [@bs.deriving abstract]
   type context = pri {
