@@ -35,6 +35,7 @@ dependencies:
 - warp == 3.2.*
 - websockets == 0.12.*
 - stm == 2.4.*
+- wai-cors == 0.2.*
 
 library:
   source-dirs: src
