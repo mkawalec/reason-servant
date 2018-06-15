@@ -32,6 +32,7 @@ data Account = Account {
   uid :: UUID
 , username :: Text
 , score :: Int
+, color :: String
 } deriving (Eq, Show, Ord, Generic, Typeable)
 
 instance ToJSON Account
@@ -70,10 +71,19 @@ data ScoreUpdate = ScoreUpdate {
 
 instance FromJSON ScoreUpdate
 
+data ColorUpdate = ColorUpdate {
+  newColor :: String
+} deriving (Eq, Show, Generic)
+
+instance FromJSON ColorUpdate
+
 type API = "register" :> ReqBody '[JSON] AccountReq :> Post '[JSON] Account
       :<|> "users" :> Get '[JSON] (Set Account)
-      :<|> "score" :> Capture "uuid" UUID 
-                   :> ReqBody '[JSON] ScoreUpdate 
+      :<|> "color" :> Capture "uuid" UUID
+                   :> ReqBody '[JSON] ColorUpdate
+                   :> Put '[JSON] ()
+      :<|> "score" :> Capture "uuid" UUID
+                   :> ReqBody '[JSON] ScoreUpdate
                    :> Put '[JSON] ()
 
 -- TODO: 
@@ -82,11 +92,11 @@ type API = "register" :> ReqBody '[JSON] AccountReq :> Post '[JSON] Account
 -- - set up a working copy on a subdomain with an oncommit reload hook
 
 server :: AcidState AccountsState -> Server API
-server state = register :<|> users :<|> score
+server state = register :<|> users :<|> color :<|> score
   where register :: AccountReq -> Handler Account
         register (AccountReq uname) = do
           uuid <- liftIO Uuid.nextRandom
-          let newAccount = Account uuid uname 0
+          let newAccount = Account uuid uname 0 "red"
 
           liftIO $ update state (AddUser newAccount)
           return newAccount
@@ -95,6 +105,15 @@ server state = register :<|> users :<|> score
         users = do
           liftIO $ putStrLn "users called"
           liftIO $ query state QueryState
+
+        color :: UUID -> ColorUpdate -> Handler ()
+        color uuid (ColorUpdate newColor) = do
+          users <- liftIO $ query state QueryState
+          case filter ((==) uuid . uid) $ Set.toList users of
+            [] -> return ()
+            user:xs -> do
+              liftIO $ update state (UpdateUser user (user { color = newColor }))
+              return ()
 
         score :: UUID -> ScoreUpdate -> Handler ()
         score uuid (ScoreUpdate newScore) = do
