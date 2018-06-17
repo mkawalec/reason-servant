@@ -85,6 +85,9 @@ type API = "register" :> ReqBody '[JSON] AccountReq :> Post '[JSON] Account
       :<|> "score" :> Capture "uuid" UUID
                    :> ReqBody '[JSON] ScoreUpdate
                    :> Put '[JSON] ()
+      :<|> "changeUsername" :> Capture "uuid" UUID
+                            :> ReqBody '[JSON] AccountReq
+                            :> Put '[JSON] ()
 
 -- TODO: 
 -- - add websocket communication
@@ -92,7 +95,7 @@ type API = "register" :> ReqBody '[JSON] AccountReq :> Post '[JSON] Account
 -- - set up a working copy on a subdomain with an oncommit reload hook
 
 server :: AcidState AccountsState -> Server API
-server state = register :<|> users :<|> color :<|> score
+server state = register :<|> users :<|> color :<|> score :<|> changeUsername
   where register :: AccountReq -> Handler Account
         register (AccountReq uname) = do
           uuid <- liftIO Uuid.nextRandom
@@ -122,6 +125,15 @@ server state = register :<|> users :<|> color :<|> score
             [] -> return ()
             user:xs -> do
               liftIO $ update state (UpdateUser user (user { score = newScore }))
+              return ()
+
+        changeUsername :: UUID -> AccountReq -> Handler ()
+        changeUsername uuid (AccountReq uname) = do
+          users <- liftIO $ query state QueryState
+          case filter ((==) uuid . uid) $ Set.toList users of
+            [] -> return ()
+            user:xs -> do
+              liftIO $ update state (UpdateUser user (user { username = uname }))
               return ()
 
 
